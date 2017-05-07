@@ -2,7 +2,7 @@ extern crate chrono;
 
 use std::sync::mpsc::channel;
 use std::time::Duration;
-use std::thread;
+// use std::thread;
 use std::process;
 
 use timer::{Timer, Guard};
@@ -21,12 +21,11 @@ impl SuperRunner{
     }
 
     pub fn start(&self) {
-        thread::spawn(runner);
+        // thread::spawn(runner);
+        self.runner();
     }
-}
 
-
-  fn runner() {
+     fn runner(&self) {
 
         let glob_set = compile_blacklist();
 
@@ -55,11 +54,9 @@ impl SuperRunner{
                 }
                 _ => {}
             }
-
-
         }
     }
-
+}
 
 
 fn build_thread() {
@@ -69,23 +66,30 @@ fn build_thread() {
 // println!("status: {}", output.status);
 // println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
 // println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-    println!("Building! (Not) {:?}", String::from_utf8_lossy(&output.stdout));
+
+    let build_msg;
+    if output.status.success() {
+        build_msg = String::from("A OK");
+    } else {
+        build_msg = String::from_utf8_lossy(&output.stderr).into_owned();
+    }
+
+    println!("Building! (Not) {}", build_msg);
 }
 
 
+fn compile_blacklist() -> GlobSet {
+    use globset::{Glob, GlobSetBuilder};
 
-    fn compile_blacklist() -> GlobSet {
-        use globset::{Glob, GlobSetBuilder};
+    let black_list = ["*/.git*", "*/target/*", "*/.vscode/*"];
 
-        let black_list = ["*/.git*", "*/target/*", "*/.vscode/*"];
+    let mut glob = GlobSetBuilder::new();
 
-        let mut glob = GlobSetBuilder::new();
-
-        for b in black_list.iter() {
-            glob.add(Glob::new(b).expect("Failed to create glob!"));
-        }
-
-        let glob_set = glob.build().expect("Failed to build globset");
-
-        glob_set
+    for b in black_list.iter() {
+        glob.add(Glob::new(b).expect("Failed to create glob!"));
     }
+
+    let glob_set = glob.build().expect("Failed to build globset");
+
+    glob_set
+}
