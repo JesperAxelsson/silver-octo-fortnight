@@ -1,0 +1,10 @@
+[package]
+name = "notify-test"
+version = "0.1.0"
+authors = ["Jesper Axelsson <jesperaxe@gmail.com>"]
+
+[dependencies]
+notify = "4"
+globset = "0.1"
+timer = "*"
+chrono = "*"
