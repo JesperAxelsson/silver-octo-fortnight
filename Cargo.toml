@@ -8,3 +8,9 @@ notify = "4"
 globset = "0.1"
 timer = "*"
 chrono = "*"
+winit="*"
+glium="*"
+
+[dependencies.conrod]
+version = "*"
+features = ["glium", "winit"]

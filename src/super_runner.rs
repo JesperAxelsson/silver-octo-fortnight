@@ -1,9 +1,17 @@
+#![allow(unused_imports)]
+#![allow(unused_variables)]
+#![allow(dead_code)]
 extern crate chrono;
 
 use std::sync::mpsc::channel;
+use std::sync::mpsc::Sender;
+
 use std::time::Duration;
 // use std::thread;
 use std::process;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use timer::{Timer, Guard};
 
@@ -13,30 +21,71 @@ use notify::DebouncedEvent::{Write, Create};
 use globset::GlobSet;
 
 
-pub struct SuperRunner {}
+pub struct SuperRunner {
+    path: PathBuf,
+    func: Arc<Fn() -> ()>
+}
 
-impl SuperRunner{
-    pub fn new() -> Self {
-        SuperRunner{}
+impl SuperRunner {
+    pub fn new(path: &str) -> Self {
+        SuperRunner {
+            path: PathBuf::from(path),
+            func: Arc::new(|| { println!("Hello");})
+        }
     }
+
+    fn test_func<F>(&self, func: &F)
+        where F: Fn() -> () {
+        func();
+    }
+
 
     pub fn start(&self) {
         // thread::spawn(runner);
-        self.runner();
+        // let ff = || {build_thread(func)};
+
+        self.test_func(&|| {});
+
+        let f= || {
+                build_thread();
+            };
+        self.runner(f);
+        // self.runner(self.test_func);
     }
 
-     fn runner(&self) {
+     fn runner<'a, F>(&self, func: F)
+            where F: 'static + Send + Sync + Fn() -> () {
 
-        let glob_set = compile_blacklist();
+        let glob_set = self.compile_blacklist();
 
         let (tx, rx) = channel();
         let mut watcher = watcher(tx, Duration::from_secs(0)).unwrap();
-        watcher.watch(".", RecursiveMode::Recursive).unwrap();
+        watcher.watch(self.path.clone(), RecursiveMode::Recursive).unwrap();
+
+        // let gg = std::thread::scoped(|| {
+
+        // });
+
+        // let f = self.func.clone();
+        // let ff = ||{ (f)(); };
+
+        let func_a = Arc::new(Mutex::new(func));
+        // let f_clone = func.clone();
+        // let f_ref: & F = func.as_ref();
+
+    {
 
         let timer = Timer::new();
         let mut guard: Option<Guard> = None;
 
+
+        // timer.schedule_with_delay(chrono::Duration::seconds(3), f_ref);
+
+        // let (trex, rrex) = channel();
+
+
         loop {
+
             let evt = rx.recv().expect("Failed to recieve event");
             match evt {
                 Write(ref path) | Create(ref path) => {
@@ -48,13 +97,37 @@ impl SuperRunner{
                             drop(g);
                         }
 
-                        guard = Some(timer.schedule_with_delay(chrono::Duration::seconds(5), build_thread ));
+                        let f_clone = func_a.clone();
+                        guard = Some(timer.schedule_with_delay(chrono::Duration::seconds(2), move || {
+                            let f = (*f_clone).lock().unwrap();
+                            f();
+                        } ));
+                        // guard = Some(timer.schedule_with_delay(chrono::Duration::seconds(2), func ));
+                        // guard = Some(timer.schedule_with_delay(chrono::Duration::seconds(2), build_thread ));
+                        // guard = Some( timer.schedule_with_delay(chrono::Duration::seconds(3), self.func));
 
                     }
                 }
                 _ => {}
             }
         }
+    }
+    }
+
+    fn compile_blacklist(&self) -> GlobSet {
+        use globset::{Glob, GlobSetBuilder};
+
+        let black_list = ["*/.git*", "*/target/*", "*/.vscode/*"];
+
+        let mut glob = GlobSetBuilder::new();
+
+        for b in black_list.iter() {
+            glob.add(Glob::new(b).expect("Failed to create glob!"));
+        }
+
+        let glob_set = glob.build().expect("Failed to build globset");
+
+        glob_set
     }
 }
 
@@ -63,33 +136,16 @@ fn build_thread() {
     println!("Starting build");
     let output  = process::Command::new("cmd").args(&["/C", "cargo check"]).output().expect("Failed to launch build");
 
-// println!("status: {}", output.status);
-// println!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-// println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-
-    let build_msg;
-    if output.status.success() {
-        build_msg = String::from("A OK");
-    } else {
-        build_msg = String::from_utf8_lossy(&output.stderr).into_owned();
+    let mut build_msg: &str = &String::from_utf8_lossy(&output.stderr).to_owned();
+    if output.status.success() && !build_msg.contains("warning") {
+        build_msg = "A OK";
     }
 
-    println!("Building! (Not) {}", build_msg);
+    println!("Building! \n{}\n", build_msg);
 }
 
 
-fn compile_blacklist() -> GlobSet {
-    use globset::{Glob, GlobSetBuilder};
 
-    let black_list = ["*/.git*", "*/target/*", "*/.vscode/*"];
+// fn test_func(tx: Sender<u32>) {
 
-    let mut glob = GlobSetBuilder::new();
-
-    for b in black_list.iter() {
-        glob.add(Glob::new(b).expect("Failed to create glob!"));
-    }
-
-    let glob_set = glob.build().expect("Failed to build globset");
-
-    glob_set
-}
+// }
